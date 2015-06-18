@@ -5,4 +5,5 @@
             :url "http://www.eclipse.org/legal/epl-v10.html"}
   :dependencies [[org.clojure/clojure "1.6.0"]
                  [clj-http "1.1.2"]
-                 [digest "1.4.4"]])
+                 [digest "1.4.4"]
+                 [org.clojure/core.async "0.1.346.0-17112a-alpha"]])
