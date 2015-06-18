@@ -7,6 +7,7 @@
 ;; SPC m s b -- send and eval buffer in REPL
 ;; SPC m s B -- send and eval buffer in REPL and switch to REPL in insert mode
 (def server-url (or (System/getenv "COIN_SERVER") "http://localhost:9292"))
+(def miner-name (or (System/getenv "MINER_NAME") "worace"))
 (def target-url (str server-url "/target"))
 
 ;; miners will send notifs to this channel when they find a coin
@@ -27,26 +28,28 @@
 (defn lower-hash? [hash-one hash-two]
   (apply < (map hash-num [hash-one hash-two])))
 
-(defn mine [identifier]
+
+(defn mine [message]
+  (let [hash (gen-hash message)]
+    (println (str "msg: " message))
+    (println (str "hash: " hash))
+    (if (lower-hash? hash @current-target)
+      (do
+        (println (str "GOT A COIN: " hash))
+        (async/>!! coin-notifs {:hash hash :message message}) )))
+  hash
+)
+
+(defn mine-loop [identifier]
   (loop [message (str ( System/currentTimeMillis ) "-" identifier)
          iterations 0]
-    (let [hash (gen-hash message)]
-      (println (str "msg: " message))
-      (println (str "hash: " hash))
-      (if (lower-hash? hash @current-target)
-        (do
-          (println (str "GOT A COIN: " hash))
-          (async/>!! coin-notifs {:hash hash :message message}) ))
-      (if (< iterations 5)
-        (recur hash (inc iterations)))
-      )
-    ))
+    (recur (mine message) (inc iterations))))
 
 (async/go
   (while true
-    (println (async/<! coin-notifs))))
+    (println (str "received from chan: " (async/<! coin-notifs) ))))
 
 (update-target!)
 (println @current-target)
-(mine 1)
+(mine "pizza")
 
