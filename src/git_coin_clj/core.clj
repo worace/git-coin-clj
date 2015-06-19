@@ -9,6 +9,7 @@
 (def server-url (or (System/getenv "COIN_SERVER") "http://localhost:9292"))
 (def miner-name (or (System/getenv "MINER_NAME") "worace"))
 (def target-url (str server-url "/target"))
+(def send-coin-url (str server-url "/hash"))
 
 ;; miners will send notifs to this channel when they find a coin
 (def coin-notifs (async/chan 10))
@@ -45,11 +46,22 @@
          iterations 0]
     (recur (mine message) (inc iterations))))
 
+(defn send-coin [message name]
+  (http/post
+   send-coin-url
+   {:form-params {"message" message "owner" name}}))
+
 (async/go
   (while true
-    (println (str "received from chan: " (async/<! coin-notifs) ))))
+    (let [coin (async/<! coin-notifs)]
+      (println (str "received from chan: "  coin))
+      (send-coin (coin :message) "worace")
+      )))
 
 (update-target!)
 (println @current-target)
+(mine "pizza")
+(mine "pizza")
+(mine "pizza")
 (mine "pizza")
 
