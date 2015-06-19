@@ -23,7 +23,9 @@
 
 (defn update-target!
   ([] (update-target! (fetch-target)))
-  ([target-hash] (swap! current-target (fn [_] (hash-num target-hash)))))
+  ([target-hash]
+   (println (str "set new target! " target-hash))
+   (swap! current-target (fn [_] (hash-num target-hash)))))
 
 (defn gen-hash [string] (digest/sha-1 string))
 
@@ -61,6 +63,14 @@
       (println (str "received from chan: "  coin))
       (check-coin-validity (send-coin (coin :message) "worace"))
       )))
+
+(defn loop-refresh-target []
+  (let [c (async/chan)]
+    (while true (async/go
+                  (async/<! (async/timeout 1000))
+                  (async/>! c :fetch!))
+           (prn (async/<!! c) (update-target!)))
+    ))
 
 (update-target!)
 (println @current-target)
