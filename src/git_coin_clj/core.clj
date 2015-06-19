@@ -1,6 +1,7 @@
 (ns git-coin-clj.core
   (:require digest
             [clj-http.client :as http]
+            [cheshire.core :as json]
             [clojure.core.async :as async]))
 
 ;; SPC m e b -- eval buffer
@@ -20,11 +21,11 @@
 
 (defn hash-num [hash] (read-string (str "0x" hash)))
 
-(defn update-target! []
-  (swap! current-target (fn [_] (hash-num (fetch-target)))))
+(defn update-target!
+  ([] (update-target! (fetch-target)))
+  ([target-hash] (swap! current-target (fn [_] (hash-num target-hash)))))
 
 (defn gen-hash [string] (digest/sha-1 string))
-
 
 (defn lower-hash? [hash-one hash-two]
   (apply < (map hash-num [hash-one hash-two])))
@@ -32,12 +33,9 @@
 
 (defn mine [message]
   (let [hash (gen-hash message)]
-    (println (str "msg: " message))
-    (println (str "hash: " hash))
+    (println (str "hash: " hash ", msg: " message))
     (if (lower-hash? hash @current-target)
-      (do
-        (println (str "GOT A COIN: " hash))
-        (async/>!! coin-notifs {:hash hash :message message}) )))
+      (async/>!! coin-notifs {:hash hash :message message})))
   hash
 )
 
@@ -45,6 +43,12 @@
   (loop [message (str ( System/currentTimeMillis ) "-" identifier)
          iterations 0]
     (recur (mine message) (inc iterations))))
+
+(defn check-coin-validity [response]
+  (let [succ ((json/parse-string (response :body)) "success")
+        new-target ((json/parse-string (response :body)) "new_target")]
+    (if succ
+      (update-target! new-target))))
 
 (defn send-coin [message name]
   (http/post
@@ -55,7 +59,7 @@
   (while true
     (let [coin (async/<! coin-notifs)]
       (println (str "received from chan: "  coin))
-      (send-coin (coin :message) "worace")
+      (check-coin-validity (send-coin (coin :message) "worace"))
       )))
 
 (update-target!)
@@ -63,5 +67,5 @@
 (mine "pizza")
 (mine "pizza")
 (mine "pizza")
-(mine "pizza")
+(mine "8cf764d0c81a73ab5d4f9b175d827edcfcc0d060") ;; hashes to 00001cebc0d839b597ae5044c4f42f65454a39c1
 
