@@ -32,13 +32,9 @@
 
 (defn gen-hash [string] (digest/sha-1 string))
 
-(defn lower-hash? [hash-one hash-two]
-  (apply < (map hash-num [hash-one hash-two])))
-
 (defn mine [message]
   (let [hash (gen-hash message)]
-    (println (str "hash: " hash ", msg: " message))
-    (if (lower-hash? hash @current-target)
+    (if (< (hash-num hash) @current-target)
       (async/>!! coin-notifs {:hash hash :message message}))
     hash))
 
@@ -64,9 +60,9 @@
 
 (defn mine-loop [identifier]
   (loop [message (str (System/currentTimeMillis) "-" identifier)
-         iterations 0]
-    (if (= 0 (mod iterations 1000000)) (println (str "Miner " identifier " completed " iterations " iterations")))
-    (recur (mine message) (inc iterations))))
+         iterations 1000]
+    ;; (if (= 0 (mod iterations 1000000)) (println (str "Miner " identifier " completed " iterations " iterations")))
+    (if (> iterations 0) (recur (mine message) (dec iterations)) )))
 
 (defn start-miners [n]
 (println "will start miners")
@@ -78,19 +74,19 @@
     (.start (Thread. (partial mine-loop n)))))
 
 (defn watch-for-coins []
-  (println "watching for coins!")
+  (println "watching for coins")
   (async/go
     (while true
       (let [coin (async/<! coin-notifs)]
-        (println (str "received from chan: "  coin))
+        (println (str "received from chan: "  coin ", target is " (format "%x" (biginteger @current-target ))))
         (check-coin-validity (send-coin (coin :message) "worace"))
         ))))
 
 (update-target!)
-(println @current-target)
+;; (println @current-target)
 (watch-for-coins)
-(watch-target)
+;; (watch-target)
 (start-miners num-cores)
-;;(mine "pizza")
+;; (mine "pizza")
 ;;(mine "8cf764d0c81a73ab5d4f9b175d827edcfcc0d060") ;; hashes to 00001cebc0d839b597ae5044c4f42f65454a39c1
 

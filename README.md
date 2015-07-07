@@ -24,6 +24,7 @@ A few major points include:
 * [X] coin verifier -- needs to send messages to server to 
 * [ ] miner threads -- agents? independent processes looping on
 * [ ] target refreshing -- another indep thread periodically refreshing target
+* [ ] shutdown -- think of some way to capture all the worker threads so we cna shut them down?
 
 ## Usage
 
