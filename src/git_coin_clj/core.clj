@@ -51,42 +51,49 @@
    send-coin-url
    {:form-params {"message" message "owner" name}}))
 
-(defn watch-target []
+(defn watch-target [run-switch]
   (async/go
-    (while true
+    (while @run-switch
       (async/<! (async/timeout 1000))
       (prn (update-target!))
       )))
 
-(defn mine-loop [identifier]
+(defn mine-loop [identifier run-switch]
+  (println "run mine loop")
   (loop [message (str (System/currentTimeMillis) "-" identifier)
-         iterations 1000]
-    ;; (if (= 0 (mod iterations 1000000)) (println (str "Miner " identifier " completed " iterations " iterations")))
-    (if (> iterations 0) (recur (mine message) (dec iterations)) )))
+         iterations 0]
+    (if (= 0 (mod iterations 10000)) (println (str "Miner " identifier " completed " iterations " iterations")))
+    (if @run-switch (recur (mine message) (inc iterations))))
+  (println (str "miner " identifier " shutting down")))
 
-(defn start-miners [n]
-(println "will start miners")
+(defn start-miners [n run-switch]
   ;; Start up N miner threads
   ;; TODO -- what is the most idiomatic / efficient way to do this
   ;; http://stackoverflow.com/questions/1768567/how-does-one-start-a-thread-in-clojure
-  ;; what about agents??
+  ;; what about agents?? also -- how do you shut them down?
   (dotimes [i n]
-    (.start (Thread. (partial mine-loop n)))))
+    (println "in a mine loop")
+    ;; (.start (Thread. (partial mine-loop i run-switch)))
+    (async/go (mine-loop i run-switch))
+    ))
 
-(defn watch-for-coins []
+(defn watch-for-coins [run-switch]
   (println "watching for coins")
   (async/go
-    (while true
+    (while @run-switch
       (let [coin (async/<! coin-notifs)]
         (println (str "received from chan: "  coin ", target is " (format "%x" (biginteger @current-target ))))
         (check-coin-validity (send-coin (coin :message) "worace"))
         ))))
 
+
+(def run-switch (atom true))
 (update-target!)
-;; (println @current-target)
-(watch-for-coins)
-;; (watch-target)
-(start-miners num-cores)
+(println @current-target)
+(watch-for-coins run-switch)
+(watch-target run-switch)
+(println (str "switch: " @run-switch))
+(start-miners (- num-cores 2) run-switch)
 ;; (mine "pizza")
 ;;(mine "8cf764d0c81a73ab5d4f9b175d827edcfcc0d060") ;; hashes to 00001cebc0d839b597ae5044c4f42f65454a39c1
 
