@@ -7,10 +7,13 @@
 ;; SPC m e b -- eval buffer
 ;; SPC m s b -- send and eval buffer in REPL
 ;; SPC m s B -- send and eval buffer in REPL and switch to REPL in insert mode
+;; C-c M-o -- clear REPL buffer output
+
 (def server-url (or (System/getenv "COIN_SERVER") "http://localhost:9292"))
 (def miner-name (or (System/getenv "MINER_NAME") "worace"))
 (def target-url (str server-url "/target"))
 (def send-coin-url (str server-url "/hash"))
+(def num-cores (.. Runtime getRuntime availableProcessors))
 
 ;; miners will send notifs to this channel when they find a coin
 (def coin-notifs (async/chan 10))
@@ -32,21 +35,16 @@
 (defn lower-hash? [hash-one hash-two]
   (apply < (map hash-num [hash-one hash-two])))
 
-
 (defn mine [message]
   (let [hash (gen-hash message)]
     (println (str "hash: " hash ", msg: " message))
     (if (lower-hash? hash @current-target)
-      (async/>!! coin-notifs {:hash hash :message message})))
-  hash
-)
-
-(defn mine-loop [identifier]
-  (loop [message (str ( System/currentTimeMillis ) "-" identifier)
-         iterations 0]
-    (recur (mine message) (inc iterations))))
+      (async/>!! coin-notifs {:hash hash :message message}))
+    hash))
 
 (defn check-coin-validity [response]
+  ;; When we submit a coin, server sends JSON response like:
+  ;; {"success" : true, "new_target" : "updated target"}
   (let [succ ((json/parse-string (response :body)) "success")
         new-target ((json/parse-string (response :body)) "new_target")]
     (if succ
@@ -57,25 +55,42 @@
    send-coin-url
    {:form-params {"message" message "owner" name}}))
 
-(async/go
-  (while true
-    (let [coin (async/<! coin-notifs)]
-      (println (str "received from chan: "  coin))
-      (check-coin-validity (send-coin (coin :message) "worace"))
+(defn watch-target []
+  (async/go
+    (while true
+      (async/<! (async/timeout 1000))
+      (prn (update-target!))
       )))
 
-(defn loop-refresh-target []
-  (let [c (async/chan)]
-    (while true (async/go
-                  (async/<! (async/timeout 1000))
-                  (async/>! c :fetch!))
-           (prn (async/<!! c) (update-target!)))
-    ))
+(defn mine-loop [identifier]
+  (loop [message (str (System/currentTimeMillis) "-" identifier)
+         iterations 0]
+    (if (= 0 (mod iterations 1000000)) (println (str "Miner " identifier " completed " iterations " iterations")))
+    (recur (mine message) (inc iterations))))
+
+(defn start-miners [n]
+(println "will start miners")
+  ;; Start up N miner threads
+  ;; TODO -- what is the most idiomatic / efficient way to do this
+  ;; http://stackoverflow.com/questions/1768567/how-does-one-start-a-thread-in-clojure
+  ;; what about agents??
+  (dotimes [i n]
+    (.start (Thread. (partial mine-loop n)))))
+
+(defn watch-for-coins []
+  (println "watching for coins!")
+  (async/go
+    (while true
+      (let [coin (async/<! coin-notifs)]
+        (println (str "received from chan: "  coin))
+        (check-coin-validity (send-coin (coin :message) "worace"))
+        ))))
 
 (update-target!)
 (println @current-target)
-(mine "pizza")
-(mine "pizza")
-(mine "pizza")
-(mine "8cf764d0c81a73ab5d4f9b175d827edcfcc0d060") ;; hashes to 00001cebc0d839b597ae5044c4f42f65454a39c1
+(watch-for-coins)
+(watch-target)
+(start-miners num-cores)
+;;(mine "pizza")
+;;(mine "8cf764d0c81a73ab5d4f9b175d827edcfcc0d060") ;; hashes to 00001cebc0d839b597ae5044c4f42f65454a39c1
 
