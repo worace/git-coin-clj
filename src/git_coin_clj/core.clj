@@ -88,12 +88,12 @@
 
 
 (def run-switch (atom true))
+(defn shutdown! [] (swap! run-switch (fn [_] false)))
+
+(defn run! []
 (update-target!)
-(println @current-target)
 (watch-for-coins run-switch)
 (watch-target run-switch)
-(println (str "switch: " @run-switch))
-(start-miners (- num-cores 2) run-switch)
-;; (mine "pizza")
-;;(mine "8cf764d0c81a73ab5d4f9b175d827edcfcc0d060") ;; hashes to 00001cebc0d839b597ae5044c4f42f65454a39c1
+(start-miners num-cores run-switch))
 
+(run!)

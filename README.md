@@ -30,6 +30,11 @@ A few major points include:
 
 TODO: add usage api once it's done
 
+## Resources
+
+http://www.reddit.com/r/Clojure/comments/2ka3na/how_do_you_organize_your_coreasync_code/
+http://stackoverflow.com/questions/1768567/how-does-one-start-a-thread-in-clojure
+
 ### License
 
 Copyright © 2015 Horace Williams
